@@ -32,11 +32,10 @@ Capable of transcribing voice notes, understanding customer intent, detecting se
 ---
 
 ## 📺 Demo
-<div align="center">
-### Interaction
-<img src="assets/text-demo.png" alt="Text Demo" width="600"><br><br>
-<img src="assets/workf-demo.png" alt="Text Demo" width="600"><br><br>
-</div>
+### chat
+<img src="assets/text-demo.png" alt="Text Demo" width="360"><br>
+### workflow
+<img src="assets/workf-demo.png" alt="Text Demo" width="3600" >
 
 <br>
 
