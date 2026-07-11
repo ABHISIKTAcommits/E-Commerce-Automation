@@ -1,0 +1,416 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        48,
+        0
+      ],
+      "id": "e5c0771f-c1fc-4479-913f-6dbe49f6020e",
+      "name": "Telegram Trigger",
+      "webhookId": "8b287505-6ccb-4df6-8ab6-fe55fd7d2315",
+      "credentials": {
+        "telegramApi": {
+          "id": "BstVhErPNEzMHSUb",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "58ba64bc-3fc7-49b7-a38b-dbe0edab5705",
+              "leftValue": "={{ $json.message.voice }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        208,
+        0
+      ],
+      "id": "c4af8f5a-b6bb-48c3-9337-68d7651f1369",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.message.voice.file_id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        368,
+        -144
+      ],
+      "id": "b9c54ff3-790e-4dbf-a46f-4ca5f12803d5",
+      "name": "Get a file",
+      "webhookId": "85d1e8e5-531c-4304-a428-326c6c2511ed",
+      "credentials": {
+        "telegramApi": {
+          "id": "BstVhErPNEzMHSUb",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        512,
+        -144
+      ],
+      "id": "79042f0f-670e-44e9-a018-af4499be0e7a",
+      "name": "Transcribe a recording",
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const td=$input.first().json.text;\nconst cId = $('Telegram Trigger').first().json.message.chat.id;\nconst un = $('Telegram Trigger').first().json.message.from.first_name;\n\nreturn [{\n  json:{\n    chat_id: cId,\n    user_name: un,\n    message_text: td,\n    is_voice: true\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        96
+      ],
+      "id": "0bb42bfb-21df-463b-ba89-fe1e5d1de0d0",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash-lite",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash-lite"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an e-commerce customer support AI. Analyze the customer's message and extract information.\n\nCustomer Message: {{ $json.message_text }}\n\nReturn ONLY valid JSON in this exact format. Do not add any other text or markdown:\n\n{\n  \"intent\": \"order_status OR refund_request OR cancel_order OR shipping_info OR return_request OR other\",\n  \"order_id\": \"The order number if mentioned, otherwise null\",\n  \"sentiment\": \"positive OR neutral OR negative OR angry\",\n  \"summary\": \"A brief 5-word summary of what they want\"\n}\n\nExamples:\nIf user says \"Where is order #1234?\", return: {\"intent\": \"order_status\", \"order_id\": \"1234\", \"sentiment\": \"neutral\", \"summary\": \"Checking order 1234 status\"}\nIf user says \"I want my money back for my shirt\", return: {\"intent\": \"refund_request\", \"order_id\": null, \"sentiment\": \"negative\", \"summary\": \"Requesting shirt refund\"}\n\nCRITICAL RULES: You must NEVER leave any field blank. If the user doesn't specify an intent, guess the most logical one. If they don't mention an order number, use null. Always output valid JSON."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        896,
+        64
+      ],
+      "id": "ee6817c7-0b50-4d2e-9634-413cd8a742f3",
+      "name": "Message a model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get Chat ID and User Name (Trigger ALWAYS runs, so this is 100% safe)\nconst triggerData = $('Telegram Trigger').first().json.message;\nconst chat_id = triggerData.chat.id;\nconst user_name = triggerData.from.first_name;\n\n// 2. Safely get the message text (works for BOTH voice and text paths)\nlet message_text = $input.first().json.message_text;\n\n// If it's missing (because Edit Fields dropped it), grab it from Trigger as fallback\nif (!message_text) {\n  message_text = triggerData.text || \"Unknown message\";\n}\n\n// 3. Parse Gemini's JSON response\nlet geminiText = $input.first().json.text;\ngeminiText = geminiText.replace(/```json/g, '').replace(/```/g, '').trim();\nlet parsed = JSON.parse(geminiText);\n\n// 4. Return clean data\nreturn [{\n  json: {\n    chat_id: chat_id,\n    user_name: user_name,\n    message_text: message_text,\n    intent: parsed.intent,\n    order_id: parsed.order_id,\n    sentiment: parsed.sentiment,\n    summary: parsed.summary\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        64
+      ],
+      "id": "43fb620e-9bfd-4ee7-a8fd-0797e32bd8ad",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d174fe2d-d3bf-4349-a885-307f456f800d",
+              "name": "text",
+              "value": "={{ $json.content.parts[0].text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1184,
+        64
+      ],
+      "id": "0924e734-fc59-412f-97d8-1d46459174dc",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "const chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst userName = $('Telegram Trigger').first().json.message.from.first_name;\nconst voiceText = $input.first().json.text || \"\";\nreturn [{\n  json: {\n    chat_id: chatId,\n    user_name: userName,\n    is_voice: true,\n    message_text: voiceText \n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        -144
+      ],
+      "id": "8e85f7c2-9df4-486a-a44c-f639cdf4ca73",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Your Fake Shopify \"Database\"\nconst fakeDatabase = [\n  {\n    id: \"1159\",\n    name: \"#1159\",\n    financial_status: \"paid\",\n    fulfillment_status: \"in_transit\",\n    total_price: \"120\",\n    currency: \"INR\",\n    tracking_number: \"1Z999AA10123456784\",\n    line_items: [{ title: \"Cute Crochet\", quantity: 1 }]\n  },\n  {\n    id: \"1140\",\n    name: \"#1140\",\n    financial_status: \"pending\",\n    fulfillment_status: \"shipped\",\n    total_price: \"300\",\n    currency: \"INR\",\n    tracking_number: \"1K999DD10123456784\",\n    line_items: [{ title: \"Cute Crochet Teddy\", quantity: 1 }]\n  }\n];\n\n// 2. Safely get the Order ID (check if it exists first)\nconst rawOrderId = $input.first().json.order_id;\nconst requestedId = rawOrderId ? rawOrderId.toString() : null;\n\n// 3. If no order ID was found, return early so Gemini can ask for it\nif (!requestedId) {\n  return [{ \n    json: { \n      error: \"no_order_id\" \n    } \n  }];\n}\n\n// 4. Find the matching order\nconst orderDetails = fakeDatabase.find(order => order.id === requestedId);\n\n// 5. Return the order or \"not found\" error\nif (orderDetails) {\n  return [{ json: orderDetails }];\n} else {\n  return [{ \n    json: { \n      error: \"order_not_found\", \n      requested_id: requestedId \n    } \n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        64
+      ],
+      "id": "be85689d-2770-4dde-aa5d-a30dbe0b8f66",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-3-flash-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a friendly customer support agent. The user's name is {{ $('Code in JavaScript2').item.json.user_name }}. Their intent is {{ $('Code in JavaScript2').item.json.message_text }}. Their order ID is {{ $json.id }}.  Write a short, polite 1-sentence reply to the user resolving their issue."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        1680,
+        64
+      ],
+      "id": "b1ed44ca-458c-435e-b4af-fcebc4a7d8d5",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Code in JavaScript2').item.json.chat_id }}",
+        "text": "={{ $json.content.parts[0].text }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2032,
+        64
+      ],
+      "id": "1521dbd8-f9a2-4a56-bca9-72e55ddc974f",
+      "name": "Send a text message",
+      "webhookId": "7a75498a-554e-4048-9895-a152b7aab3c3",
+      "credentials": {
+        "telegramApi": {
+          "id": "BstVhErPNEzMHSUb",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Get a file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a file": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Message a model1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Message a model1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "eb9e6fb3-217d-4d6a-9f4c-ff63b168cc97",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "16518075c68ebeb4c5a5cefb303aafd87878631b6a84d2f1fa40bab148085276"
+  },
+  "nodeGroups": [],
+  "id": "FHKSDgWDFt9P46xZ",
+  "tags": []
+}
